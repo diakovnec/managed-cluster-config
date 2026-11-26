@@ -33,7 +33,7 @@ spec:
         - --telemetry-port=8081
         - --custom-resource-state-only=true
         - --custom-resource-state-config-file=/etc/config/custom-resource-state.yaml
-        - --namespaces=ocm-staging-2u61c3mnttv2gn1vd5o6f4bhobtjfdnm-ydiakovhcp
+        - --namespaces=REPLACE_HCP_NAMESPACE
         volumeMounts:
         - name: config
           mountPath: /etc/config

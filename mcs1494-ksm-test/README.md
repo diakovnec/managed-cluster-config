@@ -46,18 +46,19 @@ disposable stage cluster.
 ### Objects you apply (all from this kit)
 - `worker-node-auto-replaced.yaml`: the `ManagedFleetNotification` (the service log template).
 - `scoped/10..50-*.yaml`: a second kube-state-metrics pod limited to the cluster under test, publishing the metric as
-  `capitest_machine_info`. Edit the `--namespaces=` argument in `scoped/20-deployment.yaml` to the hosted control plane
-  namespace of your cluster.
+  `capitest_machine_info`. `scoped/20-deployment.yaml` carries the placeholder `REPLACE_HCP_NAMESPACE`, which the deploy
+  step below replaces with the hosted control plane namespace of your cluster.
 - `scoped/60-test-rule.PrometheusRule.yaml`: the PR's alert expression reading the scoped metric.
 - `helpers.sh`: shell functions for the queries and monitors. Set `CID`, `EXT`, `CLUSTER_NAME` and `REASON` first.
 
 ### Time
 Each failed-node scenario takes about 10 minutes after the kubelet stop (the MHC waits 8 minutes), plus recovery. The
-four scenarios take about 2 hours in total.
+five scenarios take about 2 to 3 hours in total.
 
 ### Safety
 - The tests stop kubelet on real nodes and send a real service log to the test cluster. Use a throwaway cluster.
-- Nothing here is committed to the repo. Remove all test objects when done (cleanup commands in the steps below).
+- This kit is not part of the PR; it lives on a separate testing branch. Remove all test objects from the clusters when
+  done (cleanup commands in the steps below).
 - Never put cluster passwords in this folder.
 
 ## Deploy all files
@@ -70,9 +71,11 @@ source helpers.sh
 # 1. the service log template
 ocm backplane elevate "$REASON" -- apply -f worker-node-auto-replaced.yaml
 
-# 2. the scoped kube-state-metrics, in this order
-for f in 10-configmap 50-networkpolicy 20-deployment 30-service 40-servicemonitor; do
-  ocm backplane elevate "$REASON" -- apply -f scoped/$f.yaml
+# 2. the scoped kube-state-metrics, in this order. The deployment is limited to the namespace given by HCP_NAMESPACE
+#    (set by helpers.sh), so substitute it into a temporary copy first.
+sed "s|REPLACE_HCP_NAMESPACE|$HCP_NAMESPACE|" scoped/20-deployment.yaml > /tmp/20-deployment.yaml
+for f in scoped/10-configmap.yaml scoped/50-networkpolicy.yaml /tmp/20-deployment.yaml scoped/30-service.yaml scoped/40-servicemonitor.yaml; do
+  ocm backplane elevate "$REASON" -- apply -f $f
 done
 oc -n hypershift-observability rollout status deployment/kube-state-metrics-test
 
