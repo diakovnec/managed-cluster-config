@@ -1,0 +1,31 @@
+---
+apiVersion: monitoring.rhobs/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    prometheus: worker-node-auto-replaced-test
+    role: alert-rules
+  name: worker-node-auto-replaced-test
+  namespace: openshift-observability-rhobs
+spec:
+  groups:
+    - name: worker-node-auto-replaced-test
+      interval: 60s
+      rules:
+        # Test copy of the PR rule: same expression, but reads capitest_machine_info from the scoped test pod.
+        - alert: WorkerNodeAutoReplacedNotificationTest
+          annotations:
+            summary: "Worker node automatically replaced by MachineHealthCheck (test rule)"
+            description: "MachineHealthCheck handed worker node {{ $labels.machine_name }} of cluster {{ $labels._id }} over for replacement; the customer is notified via service log."
+          expr: |-
+            last_over_time(capitest_machine_info{healthcheck_succeeded="False",owner_remediated="False"}[10m])
+            * on (exported_namespace) group_left(_id)
+            group by (exported_namespace, _id) (
+              label_join(hypershift_nodepools_size, "exported_namespace", "-", "exported_namespace", "cluster_name")
+            )
+            unless on (_id) hypershift_cluster_alerts_disabled
+          labels:
+            severity: info
+            send_managed_notification: "true"
+            managed_notification_template: worker-node-auto-replaced
+            namespace: "{{ $labels.namespace }}"
